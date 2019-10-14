@@ -13,3 +13,6 @@ creative messenger
 
 # Технологии 
 C++, PHP, Qt, IDE Visual Studio или Clion, PhpStorm. 
+
+# План обучения
+https://docs.google.com/document/d/1_vnuY3nMRb4yY8JRvPe4GRZbDpGir4zdg9JJB32LaHM/edit#
