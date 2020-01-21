@@ -1,18 +1,49 @@
 {
-  "users" : [
+  "Users": [
     {
-      "login" : "admin",
-      "password" : "admin"
+      "Login": "admin",
+      "Password": "admin",
+      "Contacts": []
     },
-
     {
-      "login" : "user1",
-      "password" : "pass1"
+      "Login": "user1",
+      "Password": "pass1",
+      "Contacts": []
     },
-
     {
-      "login" : "user2",
-      "password" : "pass2"
+      "Login": "user2",
+      "Password": "pass2",
+      "Contacts": [
+        {
+          "Name": "qwe",
+          "Messages": null
+        },
+        {
+          "Name": "user1",
+          "Messages": [
+            "user2: cfgcg",
+            "user1: hello",
+            "user2: hello, nice 2 meet U",
+            "user1: dfdfdf",
+            "user1: 213",
+            "user1: 123321",
+            "user1: 123213",
+            "user1: 123123"
+          ]
+        }
+      ]
+    },
+    {
+      "Login": "qwe",
+      "Password": "qwe",
+      "Contacts": [
+        {
+          "Name": "user1",
+          "Messages": [
+            "qwe: hello"
+          ]
+        }
+      ]
     }
   ]
 }
