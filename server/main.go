@@ -41,11 +41,91 @@ var users []User
 
 const filename string = "users.json"
 
-func getUsers() *Config {
-	file, _ := os.Open(filename)
-	config := new(Config)
-	json.NewDecoder(file).Decode(&config)
-	return config
+func main() {
+
+	// Устанавливаем прослушивание порта
+	ln, _ := net.Listen("tcp", ":8080")
+
+	fmt.Println("Listen...")
+
+	// Запускаем цикл
+	for {
+		conn, _ := ln.Accept() // Открываем порт
+
+		go handleConnection(conn)
+
+	}
+}
+
+func handleConnection(conn net.Conn) {
+	var req ReqResp
+	for {
+		buf := make([]byte, 1024)
+		n, _ := conn.Read(buf)
+		buf = buf[0:n]
+		if len(buf) > 0 {
+			fmt.Println("Пришел запрос: ", string(buf))
+			err := json.Unmarshal(buf, &req)
+			if err != nil {
+				fmt.Println("err: ", err)
+			} else {
+				conn.Write(initReq(req))
+			}
+		} else {
+			fmt.Println("Пользователь ", conn.RemoteAddr(), " отключился", )
+			break
+		}
+
+	}
+}
+
+func initReq(req ReqResp) []byte {
+	var resp ReqResp
+	resp.Object = req.Object
+	resp.Method = req.Method
+	resp.Msg = req.Msg
+	if req.Method == "POST" && req.Object == "user" {
+		b := addUser(req.Param, resp)
+		return b
+	}
+	if req.Method == "GET" && req.Object == "user" {
+		b := checkUser(req.Param, resp)
+		return b
+	}
+	if req.Method == "POST" && req.Object == "contact" {
+		b := addContact(req.Param, resp)
+		return b
+	}
+	if req.Method == "DELETE" && req.Object == "contact" {
+		b := delContact(req.Param, resp)
+		return b
+	}
+	if req.Method == "POST" && req.Object == "message" {
+		b := sendMessage(req.Msg, resp)
+		return b
+	}
+	if req.Method == "GET" && req.Object == "messages" {
+		b := sendMessages(req.Param, resp)
+		return b
+	}
+	return []byte("error")
+}
+
+func addUser(user string, resp ReqResp) []byte {
+	data := strings.Split(user, "/")
+	login := data[0]
+	password := data[1]
+	if isContactExist(login) {
+		resp.Param = "no"
+	} else {
+		resp.Param = "yes"
+	}
+
+	if resp.Param == "yes" {
+		appendUser(login, password)
+	}
+	b, _ := json.Marshal(resp)
+	return b
 }
 
 func isContactExist(contact string) bool {
@@ -54,6 +134,61 @@ func isContactExist(contact string) bool {
 
 	for _, us := range config.Users {
 		if us.Login == contact {
+			return true
+		}
+	}
+	return false
+}
+
+func getUsers() *Config {
+	file, _ := os.Open(filename)
+	config := new(Config)
+	json.NewDecoder(file).Decode(&config)
+	return config
+}
+
+func appendUser(login, password string) {
+
+	rawDataIn, _ := ioutil.ReadFile(filename)
+
+	var config Config
+	json.Unmarshal(rawDataIn, &config)
+
+	newUser := User{
+		Login:    login,
+		Password: password,
+		Contacts: nil,
+	}
+
+	config.Users = append(config.Users, newUser)
+
+	rawDataOut, _ := json.MarshalIndent(&config, "", "  ")
+
+	ioutil.WriteFile(filename, rawDataOut, 0644)
+}
+
+
+
+
+func checkUser(user string, resp ReqResp) []byte {
+	data := strings.Split(user, "/")
+
+	if isUserExist(data[0], data[1]) {
+		resp.Param = "yes"
+		resp.List = getContacts(data[0])
+	} else {
+		resp.Param = "no"
+	}
+
+	b, _ := json.Marshal(resp)
+	return b
+}
+
+func isUserExist(login, password string) bool {
+	config := new(Config)
+	config = getUsers()
+	for _, us := range config.Users {
+		if us.Login == login && us.Password == password {
 			return true
 		}
 	}
@@ -75,15 +210,21 @@ func getContacts(login string) []string {
 	return contacts
 }
 
-func isUserExist(login, password string) bool {
-	config := new(Config)
-	config = getUsers()
-	for _, us := range config.Users {
-		if us.Login == login && us.Password == password {
-			return true
-		}
+
+func addContact(user string, resp ReqResp) []byte {
+	data := strings.Split(user,"/")
+	user = data[0]
+	contact := data[1]
+
+	if isContactExist(contact) {
+		resp.Param = "yes"
+		// добавление контакта в users.json
+		appendContact(user, contact)
+	} else {
+		resp.Param = "no"
 	}
-	return false
+	b, _ := json.Marshal(resp)
+	return b
 }
 
 func appendContact(user, contact string) {
@@ -108,21 +249,7 @@ func appendContact(user, contact string) {
 	ioutil.WriteFile(filename, rawDataOut, 0644)
 }
 
-func addContact(user string, resp ReqResp) []byte {
-	data := strings.Split(user,"/")
-	user = data[0]
-	contact := data[1]
 
-	if isContactExist(contact) {
-		resp.Param = "yes"
-		// добавление контакта в users.json
-		appendContact(user, contact)
-	} else {
-		resp.Param = "no"
-	}
-	b, _ := json.Marshal(resp)
-	return b
-}
 
 func delContact(user string, resp ReqResp) []byte {
 	data := strings.Split(user,"/")
@@ -153,56 +280,8 @@ func delContact(user string, resp ReqResp) []byte {
 	return b
 }
 
-func checkUser(user string, resp ReqResp) []byte {
-	data := strings.Split(user, "/")
 
-	if isUserExist(data[0], data[1]) {
-		resp.Param = "yes"
-		resp.List = getContacts(data[0])
-	} else {
-		resp.Param = "no"
-	}
 
-	b, _ := json.Marshal(resp)
-	return b
-}
-
-func appendUser(login, password string) {
-
-	rawDataIn, _ := ioutil.ReadFile(filename)
-
-	var config Config
-	json.Unmarshal(rawDataIn, &config)
-
-	newUser := User{
-		Login:    login,
-		Password: password,
-		Contacts: nil,
-	}
-
-	config.Users = append(config.Users, newUser)
-
-	rawDataOut, _ := json.MarshalIndent(&config, "", "  ")
-
-	ioutil.WriteFile(filename, rawDataOut, 0644)
-}
-
-func addUser(user string, resp ReqResp) []byte {
-	data := strings.Split(user, "/")
-	login := data[0]
-	password := data[1]
-	if isContactExist(login) {
-		resp.Param = "no"
-	} else {
-		resp.Param = "yes"
-	}
-
-	if resp.Param == "yes" {
-		appendUser(login, password)
-	}
-	b, _ := json.Marshal(resp)
-	return b
-}
 
 func addMessage(user1, user2, text string) {
 	rawDataIn, _ := ioutil.ReadFile(filename)
@@ -279,86 +358,5 @@ func sendMessages(user string, resp ReqResp) []byte {
 
 }
 
-func initReq(req ReqResp, conn net.Conn) []byte {
-	var resp ReqResp
-	resp.Object = req.Object
-	resp.Method = req.Method
-	resp.Msg = req.Msg
-	if req.Method == "POST" && req.Object == "contact" {
-		b := addContact(req.Param, resp)
-		return b
-	}
-	if req.Method == "POST" && req.Object == "message" {
-		b := sendMessage(req.Msg, resp)
-		return b
-	}
-	if req.Method == "GET" && req.Object == "user" {
-		b := checkUser(req.Param, resp)
-		return b
-	}
-	if req.Method == "GET" && req.Object == "messages" {
-		b := sendMessages(req.Param, resp)
-		return b
-	}
-	if req.Method == "POST" && req.Object == "user" {
-		b := addUser(req.Param, resp)
-		return b
-	}
-	if req.Method == "DELETE" && req.Object == "contact" {
-		b := delContact(req.Param, resp)
-		return b
-	}
-	return []byte("error")
-}
-
-func handleConnection(conn net.Conn) {
-	var req ReqResp
-	for {
-		buf := make([]byte, 1024)
-		n, _ := conn.Read(buf)
-		buf = buf[0:n]
-		if len(buf) > 0 {
-			fmt.Println("Пришел запрос: ", string(buf))
-			err := json.Unmarshal(buf, &req)
-			if err != nil {
-				fmt.Println("err: ", err)
-			} else {
-				conn.Write(initReq(req, conn))
-			}
-		} else {
-			/*
-				if len(users) > 0 {
-
-					var x int
-					for n, val := range users {
-						if val.Addr == conn.RemoteAddr() {
-							x = n
-						}
-					}
-					users = append(users[:x], users[x+1:]...)
 
 
-				}
-
-			*/
-			fmt.Println("Пользователь ", conn.RemoteAddr(), " отключился", )
-			break
-		}
-
-	}
-}
-func main() {
-
-	// Устанавливаем прослушивание порта
-	ln, _ := net.Listen("tcp", ":8080")
-
-	fmt.Println("Listen...")
-
-	// Запускаем цикл
-	for {
-		conn, _ := ln.Accept() // Открываем порт
-
-		go handleConnection(conn)
-
-	}
-}
